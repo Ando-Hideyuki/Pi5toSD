@@ -39,6 +39,7 @@ int spi_init() {
     return 0;
 }
 
+
 // **SRAMに 256バイトのデータを書き込む**
 void sram_write_256(uint32_t addr, uint8_t *data_buffer) {
     uint8_t tx_buf[3 + BUFFER_SIZE] = {WRITE, 
