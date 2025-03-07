@@ -28,7 +28,7 @@ unsigned PicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16]
 #define READ  0x03  // 読み込みコマンド
 #define BUFFER_SIZE 256  // 256バイトのデータ
 
-int spi_fd;  // SPIデバイスのファイルディスクリプタ
+int spi_fd0,spi_fd1,spi_fd2;  // SPIデバイスのファイルディスクリプタ
 
 uint8_t write_data[BUFFER_SIZE];  // 書き込み用データ
 RP1_GPIO rp1;
@@ -36,8 +36,8 @@ RP1_GPIO rp1;
 
 // **SPIの初期化**
 int spi_init() {
-    spi_fd = open(SPI_DEVICE0, O_RDWR);
-    if (spi_fd < 0) {
+    spi_fd0 = open(SPI_DEVICE0, O_RDWR);
+    if (spi_fd0 < 0) {
         perror("SPIデバイスを開けませんでした");
         return -1;
     }
@@ -46,9 +46,37 @@ int spi_init() {
     uint8_t bits = 8;
     uint32_t speed = SPI_SPEED;
 
-    ioctl(spi_fd, SPI_IOC_WR_MODE, &mode);
-    ioctl(spi_fd, SPI_IOC_WR_BITS_PER_WORD, &bits);
-    ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+    ioctl(spi_fd0, SPI_IOC_WR_MODE, &mode);
+    ioctl(spi_fd0, SPI_IOC_WR_BITS_PER_WORD, &bits);
+    ioctl(spi_fd0, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+
+    spi_fd0 = open(SPI_DEVICE1, O_RDWR);
+    if (spi_fd1 < 0) {
+        perror("SPIデバイスを開けませんでした");
+        return -1;
+    }
+
+    uint8_t mode = 0;
+    uint8_t bits = 8;
+    uint32_t speed = SPI_SPEED;
+
+    ioctl(spi_fd1, SPI_IOC_WR_MODE, &mode);
+    ioctl(spi_fd1, SPI_IOC_WR_BITS_PER_WORD, &bits);
+    ioctl(spi_fd1, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+
+    spi_fd0 = open(SPI_DEVICE2, O_RDWR);
+    if (spi_fd2 < 0) {
+        perror("SPIデバイスを開けませんでした");
+        return -1;
+    }
+
+    uint8_t mode = 0;
+    uint8_t bits = 8;
+    uint32_t speed = SPI_SPEED;
+
+    ioctl(spi_fd2, SPI_IOC_WR_MODE, &mode);
+    ioctl(spi_fd2, SPI_IOC_WR_BITS_PER_WORD, &bits);
+    ioctl(spi_fd2, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
 
     return 0;
 }
@@ -118,7 +146,7 @@ void sram_read_256(uint32_t addr, uint8_t *data_buffer) {
 }
 
 #define SPI_SRAM_CMD_WRMR  0x01  // Write Mode Register
-#define SPI_SRAM_SEQ_MODE 0x40  // バイトモード（デフォルト）
+#define SPI_SRAM_SEQ_MODE 0x40  // シーケンシャルモード（デフォルト）
 
 void reset_sram_mode(int spi_fd) {
     uint8_t cmd[2] = {SPI_SRAM_CMD_WRMR, SPI_SRAM_SEQ_MODE};
@@ -144,8 +172,6 @@ uint8_t check_sram_mode(int spi_fd) {
     ioctl(spi_fd, SPI_IOC_MESSAGE(2), transfer);
     return mode;
 }
-
-
 
 //--------PWM用に分解
 void SetDat(int line){
@@ -189,7 +215,6 @@ void SetDat(int line){
        
     }
   }
-  
 void bitmap_process() {
     bmp_img img;
     bmp_img_read(&img, "input.bmp");
@@ -241,7 +266,6 @@ int main() {
 
     //BMPを開いてPicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16]にセットする
     bitmap_process();
-
     gpio_init();
 
     //SPIの設定
@@ -252,8 +276,8 @@ int main() {
     uint32_t test_addr = 0x000000;  // 読み書きするアドレス
     uint8_t read_data[BUFFER_SIZE] = {0};  // 読み取り用バッファ
 
-    reset_sram_mode(spi_fd);
-    uint8_t mode = check_sram_mode(spi_fd);
+    reset_sram_mode(spi_fd0);
+    uint8_t mode = check_sram_mode(spi_fd0);
     printf("23LC1024 Mode Register: 0x%02X\n", mode);
 
 
@@ -285,7 +309,9 @@ int main() {
         printf("\n❌ SRAM 読み書きに失敗しました...\n");
     }
 
-    close(spi_fd);
+    close(spi_fd0);
+    close(spi_fd1);
+    close(spi_fd2);
     rp1.end();
     return 0;
 }
