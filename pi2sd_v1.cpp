@@ -11,7 +11,7 @@
 #define SPI_DEVICE0 "/dev/spidev1.0"  // SPIデバイス（CE0を使用）
 #define SPI_DEVICE1 "/dev/spidev1.1"  // SPIデバイス（CE1を使用）
 #define SPI_DEVICE2 "/dev/spidev1.2"  // SPIデバイス（CE2を使用）
-#define SPI_SPEED 30000000  // SPIクロック速度（30MHz）
+#define SPI_SPEED 20000000  // SPIクロック速度（30MHz）
 
 #define WRITE 0x02  // 書き込みコマンド
 #define READ  0x03  // 読み込みコマンド
@@ -67,8 +67,10 @@ void sram_write() {
     buff[2]=0x00;
     buff[3]=0x00;
     for(i=0;i<256;i++){
-        buff[i+4]=255-i;
-        write_data[i]=buff[i+4];
+
+    //        buff[i+4]=255-i;
+            buff[i+4]=i;
+    write_data[i]=buff[i+4];
     }
     int result = write(spi_fd, buff, 4+256);
     if (result < 0) {
@@ -104,6 +106,34 @@ void sram_read_256(uint32_t addr, uint8_t *data_buffer) {
     memcpy(data_buffer, &rx_buf[4], BUFFER_SIZE);  // 受信データをコピー
 }
 
+#define SPI_SRAM_CMD_WRMR  0x01  // Write Mode Register
+#define SPI_SRAM_SEQ_MODE 0x40  // バイトモード（デフォルト）
+
+void reset_sram_mode(int spi_fd) {
+    uint8_t cmd[2] = {SPI_SRAM_CMD_WRMR, SPI_SRAM_SEQ_MODE};
+    struct spi_ioc_transfer transfer = {0};
+
+    transfer.tx_buf = (unsigned long)cmd;
+    transfer.len = 2;
+    
+    ioctl(spi_fd, SPI_IOC_MESSAGE(1), &transfer);
+}
+
+
+#define SPI_SRAM_CMD_RDMR  0x05  // Read Mode Register
+uint8_t check_sram_mode(int spi_fd) {
+    uint8_t cmd = SPI_SRAM_CMD_RDMR;
+    uint8_t mode = 0xFF;
+    struct spi_ioc_transfer transfer[2] = {0};
+    transfer[0].tx_buf = (unsigned long)&cmd;
+    transfer[0].len = 1;
+    
+    transfer[1].rx_buf = (unsigned long)&mode;
+    transfer[1].len = 1;
+    ioctl(spi_fd, SPI_IOC_MESSAGE(2), transfer);
+    return mode;
+}
+
 int main() {
 
     //GPIOの設定
@@ -115,11 +145,15 @@ int main() {
     rp1.pinMode(22, rp1.INPUT);
   
     rp1.pinMode(26, rp1.OUTPUT); //HC157のS HのときSram0, LのときSram1に接続
+
     rp1.pinMode(4, rp1.OUTPUT);  //GPIO4 -> PIC
     rp1.pinMode(23, rp1.INPUT);
   
+
     rp1.digitalWrite(26, rp1.LOW);//HC157のS LのときAつまりSram0に接続
+    //rp1.digitalWrite(26, rp1.HIGH);//HC157のS HのときAつまりSram1に接続
     rp1.digitalWrite(4, rp1.HIGH);//PICを動作させる  
+    //rp1.digitalWrite(4, rp1.LOW);//PICを停止させる  
   
     //SPIの設定
     if (spi_init() < 0) {
@@ -128,6 +162,11 @@ int main() {
 
     uint32_t test_addr = 0x000000;  // 読み書きするアドレス
     uint8_t read_data[BUFFER_SIZE] = {0};  // 読み取り用バッファ
+
+    reset_sram_mode(spi_fd);
+    uint8_t mode = check_sram_mode(spi_fd);
+    printf("23LC1024 Mode Register: 0x%02X\n", mode);
+
 
     printf("SRAMに 0x00 ～ 0xFF のデータを書き込み...\n");
     //sram_write_256(test_addr, write_data);
