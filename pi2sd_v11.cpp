@@ -14,27 +14,58 @@ Pi5　ー＞　サッカードディスプレイ　駆動のためのプログ�
 #include "rp1-gpio.h"
 #include <stdlib.h>
 #include "libbmp.h"
+#include <time.h>
 
 unsigned char R[256],G[256],B[256];
 unsigned char PicDat_r[128*256/8*16],PicDat_g[128*256/8*16],PicDat_b[128*256/8*16];
 
+//debug用
+unsigned char read_data[0x1ffff];
 
 #define SPI_DEVICE0 "/dev/spidev1.0"  // SPIデバイス（CE0を使用）
 #define SPI_DEVICE1 "/dev/spidev1.1"  // SPIデバイス（CE1を使用）
 #define SPI_DEVICE2 "/dev/spidev1.2"  // SPIデバイス（CE2を使用）
-#define SPI_SPEED 20000000  // SPIクロック速度（30MHz）
+#define SPI_SPEED 30000000  // SPIクロック速度（30MHz）
 
 #define WRITE 0x02  // 書き込みコマンド
 #define READ  0x03  // 読み込みコマンド
-#define BUFFER_SIZE 256  // 256バイトのデータ
 
 int spi_fd0,spi_fd1,spi_fd2;  // SPIデバイスのファイルディスクリプタ
 
-uint8_t write_data[BUFFER_SIZE];  // 書き込み用データ
 RP1_GPIO rp1;
 
 
 // **SPIの初期化**
+#define SPI_SRAM_CMD_WRMR  0x01  // Write Mode Register
+#define SPI_SRAM_SEQ_MODE 0x40  // シーケンシャルモード（デフォルト）
+void reset_sram_mode(int spi_fd) {
+    uint8_t cmd[2] = {SPI_SRAM_CMD_WRMR, SPI_SRAM_SEQ_MODE};
+    struct spi_ioc_transfer transfer;
+    memset(&transfer, 0, sizeof(transfer)); // すべてのメンバをゼロ初期化
+    transfer.tx_buf = (unsigned long)cmd;
+    transfer.len = 2;
+    
+    ioctl(spi_fd, SPI_IOC_MESSAGE(1), &transfer);
+}
+
+
+#define SPI_SRAM_CMD_RDMR  0x05  // Read Mode Register
+uint8_t check_sram_mode(int spi_fd) {
+    uint8_t cmd = SPI_SRAM_CMD_RDMR;
+    uint8_t mode = 0xFF;
+    struct spi_ioc_transfer transfer[2];
+    memset(&transfer, 0, sizeof(transfer)); // 配列全体をゼロ初期化
+    transfer[0].tx_buf = (unsigned long)&cmd;
+    transfer[0].len = 1;
+    
+    transfer[1].rx_buf = (unsigned long)&mode;
+    transfer[1].len = 1;
+    ioctl(spi_fd, SPI_IOC_MESSAGE(2), transfer);
+    return mode;
+}
+
+
+
 int spi_init() {
     spi_fd0 = open(SPI_DEVICE0, O_RDWR);
     if (spi_fd0 < 0) {
@@ -72,7 +103,18 @@ int spi_init() {
 
     return 0;
 }
-
+void sram_init(){
+    uint8_t mode;
+    reset_sram_mode(spi_fd0);
+    mode = check_sram_mode(spi_fd0);
+    printf("Sram1 Mode Register: 0x%02X\n", mode);
+    reset_sram_mode(spi_fd1);
+    mode = check_sram_mode(spi_fd1);
+    printf("Sram2 Mode Register: 0x%02X\n", mode);
+    reset_sram_mode(spi_fd2);
+    mode = check_sram_mode(spi_fd2);
+    printf("Sram3 Mode Register: 0x%02X\n", mode);
+}
 
 // SRAMにデータを書き込む
 uint8_t buff[0xFFFF+4 +1];
@@ -83,6 +125,7 @@ void sram_write() {
     buff[1]=0x00;
     buff[2]=0x00;
     buff[3]=0x00;
+    
     for(i=0;i<0xFFFF;i++){
             buff[i+4]=PicDat_r[i];
    
@@ -112,62 +155,35 @@ void sram_write() {
 
 }
 
-// **SRAMから 256バイト を一気に読み込む**
-/*
-void sram_read_256(uint32_t addr, uint8_t *data_buffer) {
-    uint8_t tx_buf[4 + BUFFER_SIZE] = {READ, 
-                                       (addr >> 16) & 0xFF,  // 上位バイト
-                                       (addr >> 8)  & 0xFF,  // 中位バイト
-                                       addr & 0xFF};         // 下位バイト
-    uint8_t rx_buf[4 + BUFFER_SIZE] = {0};  // 受信用バッファ（ヘッダ＋データ）
+#define BUFFER_SIZE 0xffff  
+void sram_read(uint32_t addr) {
+    uint8_t tx_buf[4 + BUFFER_SIZE + 1] = {READ, 
+                                       (uint8_t)((addr >> 16) & 0xFF),  // 上位バイト
+                                       (uint8_t)((addr >> 8)  & 0xFF),  // 中位バイト
+                                       (uint8_t)(addr & 0xFF)};         // 下位バイト
+    uint8_t rx_buf[4 + BUFFER_SIZE + 1] = {0};  // 受信用バッファ（ヘッダ＋データ）
 
-    struct spi_ioc_transfer tr = {
-        .tx_buf = (unsigned long)tx_buf,
-        .rx_buf = (unsigned long)rx_buf,
-        .len = sizeof(tx_buf),
-        .speed_hz = SPI_SPEED,
-        .bits_per_word = 8,
-    };
+    struct spi_ioc_transfer tr;
+        memset(&tr, 0, sizeof(tr)); // すべてのメンバをゼロ初期化
+        tr.tx_buf = (unsigned long)tx_buf;
+        tr.rx_buf = (unsigned long)rx_buf;
+        tr.len = sizeof(tx_buf);
+        tr.speed_hz = SPI_SPEED;
+        tr.bits_per_word = 8;
 
-    if (ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr) < 0) {
-        perror("SRAM 256バイト読み込みエラー");
+    if (ioctl(spi_fd0, SPI_IOC_MESSAGE(1), &tr) < 0) {
+        perror("SRAM 読み込みエラー");
     }
+    memcpy(read_data, &rx_buf[4], BUFFER_SIZE);  // 受信データをコピー
 
-    memcpy(data_buffer, &rx_buf[4], BUFFER_SIZE);  // 受信データをコピー
-}
-*/
 
-#define SPI_SRAM_CMD_WRMR  0x01  // Write Mode Register
-#define SPI_SRAM_SEQ_MODE 0x40  // シーケンシャルモード（デフォルト）
-
-void reset_sram_mode(int spi_fd) {
-    uint8_t cmd[2] = {SPI_SRAM_CMD_WRMR, SPI_SRAM_SEQ_MODE};
-    struct spi_ioc_transfer transfer = {0};
-
-    transfer.tx_buf = (unsigned long)cmd;
-    transfer.len = 2;
-    
-    ioctl(spi_fd, SPI_IOC_MESSAGE(1), &transfer);
 }
 
 
-#define SPI_SRAM_CMD_RDMR  0x05  // Read Mode Register
-uint8_t check_sram_mode(int spi_fd) {
-    uint8_t cmd = SPI_SRAM_CMD_RDMR;
-    uint8_t mode = 0xFF;
-    struct spi_ioc_transfer transfer[2] = {0};
-    transfer[0].tx_buf = (unsigned long)&cmd;
-    transfer[0].len = 1;
-    
-    transfer[1].rx_buf = (unsigned long)&mode;
-    transfer[1].len = 1;
-    ioctl(spi_fd, SPI_IOC_MESSAGE(2), transfer);
-    return mode;
-}
 
 //--------PWM用に分解
 void SetDat(int line){
-    int c1,c2,i,j,k;
+    int c1,c2,j,k;
     unsigned char Pdat_r,Pdat_g,Pdat_b;   
     //変換
     c1=c2=Pdat_r=Pdat_g=Pdat_b=0;
@@ -254,37 +270,51 @@ void gpio_init(){
     //rp1.digitalWrite(4, rp1.LOW);//PICを停止させる  
 }
 
-int main() {
+void Datachk(){
+    // **データチェック**
+    int mismatch = 0;
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        if (PicDat_r[i] != read_data[i]) {
+            printf("エラー: アドレス %d で 0x%02X を書いたが 0x%02X を読んだ\n", i, PicDat_r[i], read_data[i]);
+            mismatch = 1;
+        }
+    }
 
+    if (!mismatch) {
+        printf("\n✅ SRAM 書き込み & 読み込み成功！データが一致しました！\n");
+    } else {
+        printf("\n❌ SRAM 読み書きに失敗しました...\n");
+    }
+}
+int main() {
     //BMPを開いてPicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16]にセットする
     bitmap_process();
     gpio_init();
+    spi_init();
+    sram_init();//171us
+    sram_write(); //20MHzで79ms, 30MHzで63ms
+    sram_read(0);
+    Datachk();
 
-    //SPIの設定
-    if (spi_init() < 0) {
-        return -1;
-    }
-
-    uint32_t test_addr = 0x000000;  // 読み書きするアドレス
-    uint8_t read_data[BUFFER_SIZE] = {0};  // 読み取り用バッファ
-    uint8_t mode;
-    reset_sram_mode(spi_fd0);
-    mode = check_sram_mode(spi_fd0);
-    printf("Sram1 Mode Register: 0x%02X\n", mode);
-    reset_sram_mode(spi_fd1);
-    mode = check_sram_mode(spi_fd1);
-    printf("Sram2 Mode Register: 0x%02X\n", mode);
-    reset_sram_mode(spi_fd2);
-    mode = check_sram_mode(spi_fd2);
-    printf("Sram3 Mode Register: 0x%02X\n", mode);
-
-    sram_write(); 
-
-
-    close(spi_fd0);
-    close(spi_fd1);
-    close(spi_fd2);
+    close(spi_fd0); close(spi_fd1); close(spi_fd2);
     rp1.end();
     return 0;
 }
 
+/*
+    //------------
+    // 計測開始
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    // 経過時間を計算（ナノ秒単位）
+    double elapsed_time = (end.tv_sec - start.tv_sec) +
+                          (end.tv_nsec - start.tv_nsec) / 1e9;
+
+    printf("処理時間: %.9f マイクロ秒\n", elapsed_time*1000*1000);
+//-------------
+*/
