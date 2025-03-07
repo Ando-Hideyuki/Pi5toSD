@@ -7,6 +7,12 @@
 #include <string.h>
 #include <errno.h>
 #include "rp1-gpio.h"
+#include <stdlib.h>
+#include "libbmp.h"
+
+unsigned char R[256],G[256],B[256];
+unsigned PicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16];
+
 
 #define SPI_DEVICE0 "/dev/spidev1.0"  // SPIデバイス（CE0を使用）
 #define SPI_DEVICE1 "/dev/spidev1.1"  // SPIデバイス（CE1を使用）
@@ -134,7 +140,83 @@ uint8_t check_sram_mode(int spi_fd) {
     return mode;
 }
 
+
+
+//--------PWM用に分解
+void SetDat(int line){
+    int c1,c2,i,j,k;
+    char Pdat_r,Pdat_g,Pdat_b;   
+    //変換
+    c1=c2=Pdat_r=Pdat_g=Pdat_b=0;
+    for(k=0;k<16;k++){  
+        for(j=0;j<256;j++) {
+          
+          if( 0 < R[j]){
+            R[j]--;
+            Pdat_r++;
+          };
+  
+          if( 0 < G[j]){
+            G[j]--;
+            Pdat_g++;
+          };
+  
+          if( 0 < B[j]){
+            B[j]--;
+            Pdat_b++;
+          };
+  
+          if(c2 == 7){
+            c2=0;
+            PicDat_r[line][c1]=Pdat_r;
+            PicDat_g[line][c1]=Pdat_g;
+            PicDat_b[line][c1]=Pdat_b;
+            Pdat_r=Pdat_g=Pdat_b=0;
+            c1++;
+          }else{
+            c2++;
+          }
+  
+          Pdat_r = Pdat_r<<1;
+          Pdat_g = Pdat_g<<1;
+          Pdat_b = Pdat_b<<1;
+        }
+       
+    }
+  }
+  
+void bitmap_process() {
+    bmp_img img;
+    bmp_img_read(&img, "input.bmp");
+
+    int width = img.img_header.biWidth;
+    int height = abs(img.img_header.biHeight); // 高さは絶対値で扱う
+
+    printf("画像サイズ: 幅=%d, 高さ=%d\n", width, height);
+	int x,line=0;
+
+	for(x = 0; x < width; x=x+2){
+		//printf("左上から下方向にRGBを取得 (X=%d の列)\n", x);
+		//データをR［］，G［］，B［］に変換	
+		for (int y = 0; y < height; y++) {
+				bmp_pixel p = img.img_pixels[y][x];
+				//printf("TD_Y=%d → R:%3d G:%3d B:%3d\n", y, p.red, p.green, p.blue);
+				R[y] = p.red >> 4;
+				G[y] = p.green >> 4;
+				B[y] = p.blue >> 4 ;
+		}
+		//R［］，G［］，B［］-> PicDat_r,g,b （PWM）に変換	
+		SetDat(line);
+		line++;
+	}
+    bmp_img_free(&img);
+}
+
 int main() {
+
+    //BMPを開いてPicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16]にセットする
+    bitmap_process();
+
 
     //GPIOの設定
     rp1.begin();
@@ -200,3 +282,4 @@ int main() {
     rp1.end();
     return 0;
 }
+
