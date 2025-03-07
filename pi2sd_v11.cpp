@@ -319,6 +319,8 @@ int main() {
     sram_read(0);
     Datachk();
 
+    rp1.digitalWrite(26, rp1.HIGH);//HC157のS HのときAつまりSram1に接続
+
     close(spi_fd0); close(spi_fd1); close(spi_fd2);
     rp1.end();
     return 0;
