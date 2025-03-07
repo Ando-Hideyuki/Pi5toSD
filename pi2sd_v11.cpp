@@ -125,15 +125,38 @@ void sram_write() {
     buff[1]=0x00;
     buff[2]=0x00;
     buff[3]=0x00;
-    
+
+    /*
     for(i=0;i<0xFFFF;i++){
             buff[i+4]=PicDat_r[i];
    
     }
+    */
+    memcpy(&buff[4], PicDat_r, 0xFFFF);
     result = write(spi_fd0, buff, 4 + 0xffff + 1);
     if (result < 0) {
         perror("SRAM 書き込みエラー");
     }
+
+
+/*
+    //------------
+    // 計測開始
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    // 経過時間を計算（ナノ秒単位）
+    double elapsed_time = (end.tv_sec - start.tv_sec) +
+                          (end.tv_nsec - start.tv_nsec) / 1e9;
+
+    printf("処理時間: %.9f マイクロ秒\n", elapsed_time*1000*1000);
+//-------------
+*/
+
 
     for(i=0;i<0xFFFF;i++){
             buff[i+4]=PicDat_g[i];
