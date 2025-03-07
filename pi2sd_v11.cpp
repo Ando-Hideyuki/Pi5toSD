@@ -16,7 +16,7 @@ Pi5　ー＞　サッカードディスプレイ　駆動のためのプログ�
 #include "libbmp.h"
 
 unsigned char R[256],G[256],B[256];
-unsigned PicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16];
+unsigned char PicDat_r[128*256/8*16],PicDat_g[128*256/8*16],PicDat_b[128*256/8*16];
 
 
 #define SPI_DEVICE0 "/dev/spidev1.0"  // SPIデバイス（CE0を使用）
@@ -50,29 +50,21 @@ int spi_init() {
     ioctl(spi_fd0, SPI_IOC_WR_BITS_PER_WORD, &bits);
     ioctl(spi_fd0, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
 
-    spi_fd0 = open(SPI_DEVICE1, O_RDWR);
+    spi_fd1 = open(SPI_DEVICE1, O_RDWR);
     if (spi_fd1 < 0) {
         perror("SPIデバイスを開けませんでした");
         return -1;
     }
 
-    uint8_t mode = 0;
-    uint8_t bits = 8;
-    uint32_t speed = SPI_SPEED;
-
     ioctl(spi_fd1, SPI_IOC_WR_MODE, &mode);
     ioctl(spi_fd1, SPI_IOC_WR_BITS_PER_WORD, &bits);
     ioctl(spi_fd1, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
 
-    spi_fd0 = open(SPI_DEVICE2, O_RDWR);
+    spi_fd2 = open(SPI_DEVICE2, O_RDWR);
     if (spi_fd2 < 0) {
         perror("SPIデバイスを開けませんでした");
         return -1;
     }
-
-    uint8_t mode = 0;
-    uint8_t bits = 8;
-    uint32_t speed = SPI_SPEED;
 
     ioctl(spi_fd2, SPI_IOC_WR_MODE, &mode);
     ioctl(spi_fd2, SPI_IOC_WR_BITS_PER_WORD, &bits);
@@ -82,47 +74,46 @@ int spi_init() {
 }
 
 
-// **SRAMに 256バイトのデータを書き込む**
-void sram_write_256(uint32_t addr, uint8_t *data_buffer) {
-    uint8_t tx_buf[3 + BUFFER_SIZE] = {WRITE, 
-                                       (addr >> 16) & 0xFF,  // 上位バイト
-                                       (addr >> 8)  & 0xFF,  // 中位バイト
-                                       addr & 0xFF};         // 下位バイト
-    memcpy(&tx_buf[3], data_buffer, BUFFER_SIZE);  // データを追加
-
-    int result = write(spi_fd, tx_buf, sizeof(tx_buf));
-    if (result < 0) {
-        perror("SRAM 256バイト書き込みエラー");
-    }
-}
-
 // SRAMにデータを書き込む
-uint8_t buff[256];
+uint8_t buff[0xFFFF+4 +1];
 void sram_write() {
-    uint8_t buff[256+4];
     int i;
+    int result;
     buff[0]=0x02;
     buff[1]=0x00;
     buff[2]=0x00;
     buff[3]=0x00;
-    for(i=0;i<256;i++){
-
-    //        buff[i+4]=255-i;
-            buff[i+4]=i;
-    write_data[i]=buff[i+4];
+    for(i=0;i<0xFFFF;i++){
+            buff[i+4]=PicDat_r[i];
+   
     }
-    int result = write(spi_fd, buff, 4+256);
+    result = write(spi_fd0, buff, 4 + 0xffff + 1);
     if (result < 0) {
         perror("SRAM 書き込みエラー");
     }
 
-    printf("送信データ: ");
-    for (i = 0; i < (256+4); i++) {
-        printf("%02X ", buff[i]);
+    for(i=0;i<0xFFFF;i++){
+            buff[i+4]=PicDat_g[i];
+   
     }
+    result = write(spi_fd1, buff, 4 + 0xffff + 1);
+    if (result < 0) {
+        perror("SRAM 書き込みエラー");
+    }
+
+    for(i=0;i<0xFFFF;i++){
+        buff[i+4]=PicDat_b[i];
+
+    }
+    result = write(spi_fd2, buff, 4 + 0xffff + 1);
+    if (result < 0) {
+        perror("SRAM 書き込みエラー");
+    }
+
 }
 
 // **SRAMから 256バイト を一気に読み込む**
+/*
 void sram_read_256(uint32_t addr, uint8_t *data_buffer) {
     uint8_t tx_buf[4 + BUFFER_SIZE] = {READ, 
                                        (addr >> 16) & 0xFF,  // 上位バイト
@@ -144,6 +135,7 @@ void sram_read_256(uint32_t addr, uint8_t *data_buffer) {
 
     memcpy(data_buffer, &rx_buf[4], BUFFER_SIZE);  // 受信データをコピー
 }
+*/
 
 #define SPI_SRAM_CMD_WRMR  0x01  // Write Mode Register
 #define SPI_SRAM_SEQ_MODE 0x40  // シーケンシャルモード（デフォルト）
@@ -176,7 +168,7 @@ uint8_t check_sram_mode(int spi_fd) {
 //--------PWM用に分解
 void SetDat(int line){
     int c1,c2,i,j,k;
-    char Pdat_r,Pdat_g,Pdat_b;   
+    unsigned char Pdat_r,Pdat_g,Pdat_b;   
     //変換
     c1=c2=Pdat_r=Pdat_g=Pdat_b=0;
     for(k=0;k<16;k++){  
@@ -199,9 +191,9 @@ void SetDat(int line){
   
           if(c2 == 7){
             c2=0;
-            PicDat_r[line][c1]=Pdat_r;
-            PicDat_g[line][c1]=Pdat_g;
-            PicDat_b[line][c1]=Pdat_b;
+            PicDat_r[line*512+c1]=Pdat_r;
+            PicDat_g[line*512+c1]=Pdat_g;
+            PicDat_b[line*512+c1]=Pdat_b;
             Pdat_r=Pdat_g=Pdat_b=0;
             c1++;
           }else{
@@ -275,39 +267,19 @@ int main() {
 
     uint32_t test_addr = 0x000000;  // 読み書きするアドレス
     uint8_t read_data[BUFFER_SIZE] = {0};  // 読み取り用バッファ
-
+    uint8_t mode;
     reset_sram_mode(spi_fd0);
-    uint8_t mode = check_sram_mode(spi_fd0);
-    printf("23LC1024 Mode Register: 0x%02X\n", mode);
+    mode = check_sram_mode(spi_fd0);
+    printf("Sram1 Mode Register: 0x%02X\n", mode);
+    reset_sram_mode(spi_fd1);
+    mode = check_sram_mode(spi_fd1);
+    printf("Sram2 Mode Register: 0x%02X\n", mode);
+    reset_sram_mode(spi_fd2);
+    mode = check_sram_mode(spi_fd2);
+    printf("Sram3 Mode Register: 0x%02X\n", mode);
 
-
-    printf("SRAMに 0x00 ～ 0xFF のデータを書き込み...\n");
-    //sram_write_256(test_addr, write_data);
     sram_write(); 
 
-    printf("SRAMから 256バイト を読み込み...\n");
-    sram_read_256(test_addr, read_data);
-
-    printf("\n読み込んだデータ:\n");
-    for (int i = 0; i < BUFFER_SIZE; i++) {
-        printf("%02X ", read_data[i]);
-        if ((i + 1) % 16 == 0) printf("\n");
-    }
-
-    // **データチェック**
-    int mismatch = 0;
-    for (int i = 0; i < BUFFER_SIZE; i++) {
-        if (write_data[i] != read_data[i]) {
-            printf("エラー: アドレス %d で 0x%02X を書いたが 0x%02X を読んだ\n", i, write_data[i], read_data[i]);
-            mismatch = 1;
-        }
-    }
-
-    if (!mismatch) {
-        printf("\n✅ SRAM 書き込み & 読み込み成功！データが一致しました！\n");
-    } else {
-        printf("\n❌ SRAM 読み書きに失敗しました...\n");
-    }
 
     close(spi_fd0);
     close(spi_fd1);
