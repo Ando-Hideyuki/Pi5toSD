@@ -1,3 +1,8 @@
+/*
+20250307 Ando Hideyuki
+Pi5　ー＞　サッカードディスプレイ　駆動のためのプログラム
+まだ作りかけ、現状だとSRAMのテストができる
+*/
 #include <stdio.h>
 #include <stdint.h>
 #include <fcntl.h>
@@ -211,13 +216,7 @@ void bitmap_process() {
 	}
     bmp_img_free(&img);
 }
-
-int main() {
-
-    //BMPを開いてPicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16]にセットする
-    bitmap_process();
-
-
+void gpio_init(){
     //GPIOの設定
     rp1.begin();
 
@@ -236,7 +235,15 @@ int main() {
     //rp1.digitalWrite(26, rp1.HIGH);//HC157のS HのときAつまりSram1に接続
     rp1.digitalWrite(4, rp1.HIGH);//PICを動作させる  
     //rp1.digitalWrite(4, rp1.LOW);//PICを停止させる  
-  
+}
+
+int main() {
+
+    //BMPを開いてPicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16]にセットする
+    bitmap_process();
+
+    gpio_init();
+
     //SPIの設定
     if (spi_init() < 0) {
         return -1;
