@@ -328,6 +328,8 @@ int main() {
     bitmap_process("input.bmp");
     gpio_init();
     spi_init();
+
+
     sram_init();//171us
     sram_write(); //20MHzで79ms, 30MHzで63ms
     sram_read(0);
@@ -336,10 +338,12 @@ int main() {
     PicRes0to1();//PICの処理を待ってSRAMバンクを0から1に切り替える
 
     bitmap_process("star1.bmp");
-    sram_init();//171us
+    //sram_init();//171us
     sram_write(); //20MHzで79ms, 30MHzで63ms
 
-    PicRes1to0();//PICの処理を待ってSRAMバンクを0から1に切り替える
+    PicRes1to0();//PICの処理を待ってSRAMバンクを1から0に切り替える
+
+    PicRes0to1();//PICの処理を待ってSRAMバンクを0から1に切り替える
 
     close(spi_fd0); close(spi_fd1); close(spi_fd2);
     rp1.end();
