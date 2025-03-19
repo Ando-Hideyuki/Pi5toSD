@@ -246,9 +246,10 @@ void SetDat(int line){
        
     }
   }
-void bitmap_process() {
+void bitmap_process(const char *filename) {
     bmp_img img;
-    bmp_img_read(&img, "input.bmp");
+    //bmp_img_read(&img, "input.bmp");
+    bmp_img_read(&img, filename);
 
     int width = img.img_header.biWidth;
     int height = abs(img.img_header.biHeight); // 高さは絶対値で扱う
@@ -324,7 +325,7 @@ void Datachk(){
 }
 int main() {
     //BMPを開いてPicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16]にセットする
-    bitmap_process();
+    bitmap_process("input.bmp");
     gpio_init();
     spi_init();
     sram_init();//171us
@@ -334,6 +335,7 @@ int main() {
 
     PicRes0to1();//PICの処理を待ってSRAMバンクを0から1に切り替える
 
+    bitmap_process("star1.bmp");
     sram_init();//171us
     sram_write(); //20MHzで79ms, 30MHzで63ms
 
