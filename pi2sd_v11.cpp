@@ -325,7 +325,9 @@ void Datachk(){
 }
 int main() {
     //BMPを開いてPicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16]にセットする
-    bitmap_process("input.bmp");
+    //bitmap_process("input.bmp");
+    bitmap_process("rainbow.bmp");
+
     gpio_init();
     spi_init();
 
