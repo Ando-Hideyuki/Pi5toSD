@@ -284,14 +284,27 @@ void gpio_init(){
     rp1.pinMode(26, rp1.OUTPUT); //HC157のS HのときSram0, LのときSram1に接続
 
     rp1.pinMode(4, rp1.OUTPUT);  //GPIO4 -> PIC
-    rp1.pinMode(23, rp1.INPUT);
+    rp1.pinMode(23, rp1.INPUT);  //PIC -> GPIO23   
   
-
     rp1.digitalWrite(26, rp1.LOW);//HC157のS LのときAつまりSram0に接続
     //rp1.digitalWrite(26, rp1.HIGH);//HC157のS HのときAつまりSram1に接続
     rp1.digitalWrite(4, rp1.HIGH);//PICを動作させる  
     //rp1.digitalWrite(4, rp1.LOW);//PICを停止させる  
 }
+
+void PicRes0to1(){//0->1
+    rp1.digitalWrite(4, rp1.LOW);//PICを停止させる
+    while((rp1.digitalRead(23))==1){}
+    rp1.digitalWrite(26, rp1.HIGH);//HC157のS HのときAつまりSram1に接続
+    rp1.digitalWrite(4, rp1.HIGH);//PICを動作させる
+}
+void PicRes1to0(){//1->0
+    rp1.digitalWrite(4, rp1.LOW);//PICを停止させる
+    while((rp1.digitalRead(23))==1){}
+    rp1.digitalWrite(26, rp1.LOW);//HC157のS LのときAつまりSram0に接続
+    rp1.digitalWrite(4, rp1.HIGH);//PICを動作させる
+}
+
 
 void Datachk(){
     // **データチェック**
@@ -319,7 +332,12 @@ int main() {
     sram_read(0);
     Datachk();
 
-    rp1.digitalWrite(26, rp1.HIGH);//HC157のS HのときAつまりSram1に接続
+    PicRes0to1();//PICの処理を待ってSRAMバンクを0から1に切り替える
+
+    sram_init();//171us
+    sram_write(); //20MHzで79ms, 30MHzで63ms
+
+    PicRes1to0();//PICの処理を待ってSRAMバンクを0から1に切り替える
 
     close(spi_fd0); close(spi_fd1); close(spi_fd2);
     rp1.end();
