@@ -2,6 +2,8 @@
 20250307 Ando Hideyuki
 Pi5　ー＞　サッカードディスプレイ　駆動のためのプログラム
 まだ作りかけ、現状だとSRAMのテストができる
+20250412 512ドットのテスト
+
 */
 #include <stdio.h>
 #include <stdint.h>
@@ -16,11 +18,14 @@ Pi5　ー＞　サッカードディスプレイ　駆動のためのプログ�
 #include "libbmp.h"
 #include <time.h>
 
-unsigned char R[256],G[256],B[256];
-unsigned char PicDat_r[128*256/8*16],PicDat_g[128*256/8*16],PicDat_b[128*256/8*16];
+#define Dots 512
+#define DatNo 128*Dots/8*16
+
+unsigned char R[Dots],G[Dots],B[Dots];
+unsigned char PicDat_r[DatNo],PicDat_g[DatNo],PicDat_b[DatNo];
 
 //debug用
-unsigned char read_data[0x1ffff];
+unsigned char read_data[DatNo];
 
 #define SPI_DEVICE0 "/dev/spidev1.0"  // SPIデバイス（CE0を使用）
 #define SPI_DEVICE1 "/dev/spidev1.1"  // SPIデバイス（CE1を使用）
@@ -117,7 +122,7 @@ void sram_init(){
 }
 
 // SRAMにデータを書き込む
-uint8_t buff[0xFFFF+4 +1];
+uint8_t buff[DatNo+4 +1];
 void sram_write() {
     int i;
     int result;
@@ -132,59 +137,39 @@ void sram_write() {
    
     }
     */
-    memcpy(&buff[4], PicDat_r, 0xFFFF);
-    result = write(spi_fd0, buff, 4 + 0xffff + 1);
+    memcpy(&buff[4], PicDat_r, DatNo);
+    result = write(spi_fd0, buff, 4 + DatNo + 1);
     if (result < 0) {
         perror("SRAM 書き込みエラー");
     }
 
-
-/*
-    //------------
-    // 計測開始
-    struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-
-
-    clock_gettime(CLOCK_MONOTONIC, &end);
-
-    // 経過時間を計算（ナノ秒単位）
-    double elapsed_time = (end.tv_sec - start.tv_sec) +
-                          (end.tv_nsec - start.tv_nsec) / 1e9;
-
-    printf("処理時間: %.9f マイクロ秒\n", elapsed_time*1000*1000);
-//-------------
-*/
-
-
-    for(i=0;i<0xFFFF;i++){
+    for(i=0;i<DatNo;i++){
             buff[i+4]=PicDat_g[i];
    
     }
-    result = write(spi_fd1, buff, 4 + 0xffff + 1);
+    result = write(spi_fd1, buff, 4 + DatNo + 1);
     if (result < 0) {
         perror("SRAM 書き込みエラー");
     }
 
-    for(i=0;i<0xFFFF;i++){
+    for(i=0;i<DatNo;i++){
         buff[i+4]=PicDat_b[i];
 
     }
-    result = write(spi_fd2, buff, 4 + 0xffff + 1);
+    result = write(spi_fd2, buff, 4 + DatNo + 1);
     if (result < 0) {
         perror("SRAM 書き込みエラー");
     }
 
 }
 
-#define BUFFER_SIZE 0xffff  
+
 void sram_read(uint32_t addr) {
-    uint8_t tx_buf[4 + BUFFER_SIZE + 1] = {READ, 
+    uint8_t tx_buf[4 + DatNo + 1] = {READ, 
                                        (uint8_t)((addr >> 16) & 0xFF),  // 上位バイト
                                        (uint8_t)((addr >> 8)  & 0xFF),  // 中位バイト
                                        (uint8_t)(addr & 0xFF)};         // 下位バイト
-    uint8_t rx_buf[4 + BUFFER_SIZE + 1] = {0};  // 受信用バッファ（ヘッダ＋データ）
+    uint8_t rx_buf[4 + DatNo + 1] = {0};  // 受信用バッファ（ヘッダ＋データ）
 
     struct spi_ioc_transfer tr;
         memset(&tr, 0, sizeof(tr)); // すべてのメンバをゼロ初期化
@@ -197,7 +182,7 @@ void sram_read(uint32_t addr) {
     if (ioctl(spi_fd0, SPI_IOC_MESSAGE(1), &tr) < 0) {
         perror("SRAM 読み込みエラー");
     }
-    memcpy(read_data, &rx_buf[4], BUFFER_SIZE);  // 受信データをコピー
+    memcpy(read_data, &rx_buf[4], DatNo);  // 受信データをコピー
 
 
 }
@@ -211,7 +196,7 @@ void SetDat(int line){
     //変換
     c1=c2=Pdat_r=Pdat_g=Pdat_b=0;
     for(k=0;k<16;k++){  
-        for(j=0;j<256;j++) {
+        for(j=0;j<Dots;j++) {
           
           if( 0 < R[j]){
             R[j]--;
@@ -230,9 +215,9 @@ void SetDat(int line){
   
           if(c2 == 7){
             c2=0;
-            PicDat_r[line*512+c1]=Pdat_r;
-            PicDat_g[line*512+c1]=Pdat_g;
-            PicDat_b[line*512+c1]=Pdat_b;
+            PicDat_r[line*Dots*2+c1]=Pdat_r;
+            PicDat_g[line*Dots*2+c1]=Pdat_g;
+            PicDat_b[line*Dots*2+c1]=Pdat_b;
             Pdat_r=Pdat_g=Pdat_b=0;
             c1++;
           }else{
@@ -255,9 +240,11 @@ void bitmap_process(const char *filename) {
     int height = abs(img.img_header.biHeight); // 高さは絶対値で扱う
 
     printf("画像サイズ: 幅=%d, 高さ=%d\n", width, height);
-	int x,line=0;
 
-	for(x = 0; x < width; x=x+2){
+//    if(width == 256) 
+    int x,line=0;
+
+	for(x = 0; x < width; x=x+4){ //幅は一個とばし
 		//printf("左上から下方向にRGBを取得 (X=%d の列)\n", x);
 		//データをR［］，G［］，B［］に変換	
 		for (int y = 0; y < height; y++) {
@@ -271,6 +258,7 @@ void bitmap_process(const char *filename) {
 		SetDat(line);
 		line++;
 	}
+    printf("ライン数:%d\n",line);
     bmp_img_free(&img);
 }
 void gpio_init(){
@@ -310,7 +298,7 @@ void PicRes1to0(){//1->0
 void Datachk(){
     // **データチェック**
     int mismatch = 0;
-    for (int i = 0; i < BUFFER_SIZE; i++) {
+    for (int i = 0; i < DatNo; i++) {
         if (PicDat_r[i] != read_data[i]) {
             printf("エラー: アドレス %d で 0x%02X を書いたが 0x%02X を読んだ\n", i, PicDat_r[i], read_data[i]);
             mismatch = 1;
@@ -325,8 +313,9 @@ void Datachk(){
 }
 int main() {
     //BMPを開いてPicDat_r[128][256/8*16],PicDat_g[128][256/8*16],PicDat_b[128][256/8*16]にセットする
-    bitmap_process("input.bmp");
+    //bitmap_process("input.bmp");
     //bitmap_process("rainbow.bmp");
+    bitmap_process("test2.bmp");
 
     gpio_init();
     spi_init();
@@ -335,7 +324,7 @@ int main() {
     sram_init();//171us
     sram_write(); //20MHzで79ms, 30MHzで63ms
     sram_read(0);
-    Datachk();
+    //Datachk();
 
     PicRes0to1();//PICの処理を待ってSRAMバンクを0から1に切り替える
 /*
