@@ -25,7 +25,7 @@ unsigned char read_data[0x1ffff];
 #define SPI_DEVICE0 "/dev/spidev1.0"  // SPIデバイス（CE0を使用）
 #define SPI_DEVICE1 "/dev/spidev1.1"  // SPIデバイス（CE1を使用）
 #define SPI_DEVICE2 "/dev/spidev1.2"  // SPIデバイス（CE2を使用）
-#define SPI_SPEED 30000000  // SPIクロック速度（30MHz）
+#define SPI_SPEED 20000000  // SPIクロック速度（30MHz）
 
 #define WRITE 0x02  // 書き込みコマンド
 #define READ  0x03  // 読み込みコマンド
@@ -338,15 +338,15 @@ int main() {
     Datachk();
 
     PicRes0to1();//PICの処理を待ってSRAMバンクを0から1に切り替える
-
+/*
     bitmap_process("star1.bmp");
-    //sram_init();//171us
+    sram_init();//171us
     sram_write(); //20MHzで79ms, 30MHzで63ms
 
     PicRes1to0();//PICの処理を待ってSRAMバンクを1から0に切り替える
 
-    PicRes0to1();//PICの処理を待ってSRAMバンクを0から1に切り替える
-
+    //PicRes0to1();//PICの処理を待ってSRAMバンクを0から1に切り替える
+*/
     close(spi_fd0); close(spi_fd1); close(spi_fd2);
     rp1.end();
     return 0;
