@@ -45,7 +45,7 @@ int main() {
     gpio.digitalWrite(CS_GPIO, gpio.LOW);
     ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr_wr);
     gpio.digitalWrite(CS_GPIO, gpio.HIGH);
-    usleep(50);
+    //usleep(50);
 
     // --- モード確認 ---
     uint8_t rdmr_cmd = 0x05;
@@ -75,7 +75,7 @@ int main() {
     gpio.digitalWrite(CS_GPIO, gpio.LOW);
     write(spi_fd, write_data, sizeof(write_data));
     gpio.digitalWrite(CS_GPIO, gpio.HIGH);
-    usleep(100);
+    //usleep(100);
 
     // --- 読み出し ---
     uint8_t tx_buf[4 + DATA_LEN] = { READ, 0x00, 0x00, 0x00 };
