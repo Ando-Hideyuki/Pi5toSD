@@ -2,6 +2,7 @@
 20250307 Ando Hideyuki
 Pi5　ー＞　サッカードディスプレイ　駆動のためのプログラム
 まだ作りかけ、現状だとSRAMのテストができる
+CEピンはハードウェアを使用
 */
 #include <stdio.h>
 #include <stdint.h>
