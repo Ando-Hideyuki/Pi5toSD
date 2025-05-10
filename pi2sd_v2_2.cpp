@@ -18,7 +18,8 @@ CEピンを汎用GPIOに設定
 #include <time.h>
 
 unsigned char R[256],G[256],B[256];
-unsigned char PicDat_r[128*256/8*16],PicDat_g[128*256/8*16],PicDat_b[128*256/8*16];
+unsigned char PicDat_r1[128*256/8*16],PicDat_g1[128*256/8*16],PicDat_b1[128*256/8*16];
+unsigned char PicDat_r2[128*256/8*16],PicDat_g2[128*256/8*16],PicDat_b2[128*256/8*16];
 
 //debug用
 unsigned char read_data[0x1ffff];
@@ -198,7 +199,7 @@ void sram_read() {
 
 
 //--------PWM用に分解
-void SetDat(int line){
+void SetDat_A(int line){
     int c1,c2,j,k;
     unsigned char Pdat_r,Pdat_g,Pdat_b;   
     //変換
@@ -223,9 +224,9 @@ void SetDat(int line){
   
           if(c2 == 7){
             c2=0;
-            PicDat_r[line*512+c1]=Pdat_r;
-            PicDat_g[line*512+c1]=Pdat_g;
-            PicDat_b[line*512+c1]=Pdat_b;
+            PicDat_r1[line*512+c1]=Pdat_r;
+            PicDat_g1[line*512+c1]=Pdat_g;
+            PicDat_b1[line*512+c1]=Pdat_b;
             Pdat_r=Pdat_g=Pdat_b=0;
             c1++;
           }else{
@@ -238,8 +239,52 @@ void SetDat(int line){
         }
        
     }
-  }
-void bitmap_process(const char *filename) {
+}
+
+//--------PWM用に分解
+void SetDat_B(int line){
+    int c1,c2,j,k;
+    unsigned char Pdat_r,Pdat_g,Pdat_b;   
+    //変換
+    c1=c2=Pdat_r=Pdat_g=Pdat_b=0;
+    for(k=0;k<16;k++){  
+        for(j=0;j<256;j++) {
+          
+          if( 0 < R[j]){
+            R[j]--;
+            Pdat_r++;
+          };
+  
+          if( 0 < G[j]){
+            G[j]--;
+            Pdat_g++;
+          };
+  
+          if( 0 < B[j]){
+            B[j]--;
+            Pdat_b++;
+          };
+  
+          if(c2 == 7){
+            c2=0;
+            PicDat_r2[line*512+c1]=Pdat_r;
+            PicDat_g2[line*512+c1]=Pdat_g;
+            PicDat_b2[line*512+c1]=Pdat_b;
+            Pdat_r=Pdat_g=Pdat_b=0;
+            c1++;
+          }else{
+            c2++;
+          }
+  
+          Pdat_r = Pdat_r<<1;
+          Pdat_g = Pdat_g<<1;
+          Pdat_b = Pdat_b<<1;
+        }
+       
+    }
+}
+
+void bitmap_process_A(const char *filename) {
     bmp_img img;
     //bmp_img_read(&img, "input.bmp");
     bmp_img_read(&img, filename);
@@ -261,7 +306,35 @@ void bitmap_process(const char *filename) {
 				B[y] = p.blue >> 4 ;
 		}
 		//R［］，G［］，B［］-> PicDat_r,g,b （PWM）に変換	
-		SetDat(line);
+		SetDat_A(line);
+		line++;
+	}
+    bmp_img_free(&img);
+}
+
+void bitmap_process_B(const char *filename) {
+    bmp_img img;
+    //bmp_img_read(&img, "input.bmp");
+    bmp_img_read(&img, filename);
+
+    int width = img.img_header.biWidth;
+    int height = abs(img.img_header.biHeight); // 高さは絶対値で扱う
+
+    printf("画像サイズ: 幅=%d, 高さ=%d\n", width, height);
+	int x,line=0;
+
+	for(x = 0; x < width; x=x+2){
+		//printf("左上から下方向にRGBを取得 (X=%d の列)\n", x);
+		//データをR［］，G［］，B［］に変換	
+		for (int y = 0; y < height; y++) {
+				bmp_pixel p = img.img_pixels[y][x];
+				//printf("TD_Y=%d → R:%3d G:%3d B:%3d\n", y, p.red, p.green, p.blue);
+				R[y] = p.red >> 4;
+				G[y] = p.green >> 4;
+				B[y] = p.blue >> 4 ;
+		}
+		//R［］，G［］，B［］-> PicDat_r,g,b （PWM）に変換	
+		SetDat_B(line);
 		line++;
 	}
     bmp_img_free(&img);
@@ -285,7 +358,7 @@ void Datachk(){
     // **データチェック**
     int mismatch = 0;
     for (int i = 0; i < BUFFER_SIZE; i++) {
-        if (PicDat_r[i] != read_data[i]) {
+        if (PicDat_r1[i] != read_data[i]) {
             //printf("エラー: アドレス %d で 0x%02X を書いたが 0x%02X を読んだ\n", i, PicDat_r[i], read_data[i]);
             mismatch = 1;
         }
@@ -300,8 +373,8 @@ void Datachk(){
 
 int main() {
     //bitmap_process("input.bmp");
-    bitmap_process("star1.bmp");
-    //bitmap_process("rainbow.bmp");
+    bitmap_process_A("eye1_upper.bmp");
+    bitmap_process_B("eye1_lower.bmp");
     
     gpio_init();
     spi_init();
@@ -312,12 +385,12 @@ int main() {
     sram_init();
     //sram_write(); //20MHzで79ms, 30MHzで63ms
 
-    sram_write_single(PicDat_r, CS_R1);
-    sram_write_single(PicDat_g, CS_G1);
-    sram_write_single(PicDat_b, CS_B1);
-    sram_write_single(PicDat_r, CS_R2);
-    sram_write_single(PicDat_g, CS_G2);
-    sram_write_single(PicDat_b, CS_B2);
+    sram_write_single(PicDat_r1, CS_R1);
+    sram_write_single(PicDat_g1, CS_G1);
+    sram_write_single(PicDat_b1, CS_B1);
+    sram_write_single(PicDat_r2, CS_R2);
+    sram_write_single(PicDat_g2, CS_G2);
+    sram_write_single(PicDat_b2, CS_B2);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
 
@@ -363,76 +436,4 @@ int main() {
 
     printf("処理時間: %.9f マイクロ秒\n", elapsed_time*1000*1000);
 //-------------
-*/
-
-/*
-void reset_sram_mode(int spi_fd) {
-    uint8_t cmd[2] = {SPI_SRAM_CMD_WRMR, SPI_SRAM_SEQ_MODE};
-    struct spi_ioc_transfer transfer;
-    memset(&transfer, 0, sizeof(transfer)); // すべてのメンバをゼロ初期化
-    transfer.tx_buf = (unsigned long)cmd;
-    transfer.len = 2;
-    
-    ioctl(spi_fd, SPI_IOC_MESSAGE(1), &transfer);
-}
-*/
-
-/*
-// SRAMにデータを書き込む
-uint8_t buff[0xFFFF+4 +1];
-void sram_write() {
-    int result;
-    buff[0]=WRITE;
-    buff[1]=0x00;
-    buff[2]=0x00;
-    buff[3]=0x00;
-
-    // --- R用SRAM書き込み ---
-    memcpy(&buff[4], PicDat_r, 0xFFFF);
-    rp1.digitalWrite(CS_R1, rp1.LOW);
-    result = write(spi_fd, buff, 4 + 0xFFFF + 1);
-    rp1.digitalWrite(CS_R1, rp1.HIGH);
-    //usleep(100);
-    if (result < 0) {
-        perror("SRAM_R 書き込みエラー");
-    }
-
-    // --- G用SRAM書き込み ---
-    memcpy(&buff[4], PicDat_g, 0xFFFF);
-    rp1.digitalWrite(CS_G1, rp1.LOW);
-    write(spi_fd, buff, 4 + 0xFFFF + 1);
-    rp1.digitalWrite(CS_G1, rp1.HIGH);
-    //usleep(100);
-
-    // --- B用SRAM書き込み ---
-    memcpy(&buff[4], PicDat_b, 0xFFFF);
-    rp1.digitalWrite(CS_B1, rp1.LOW);
-    write(spi_fd, buff, 4 + 0xFFFF + 1);
-    rp1.digitalWrite(CS_B1, rp1.HIGH);
-    //usleep(100);
-
-
-    // --- R用SRAM書き込み ---
-    memcpy(&buff[4], PicDat_r, 0xFFFF);
-    rp1.digitalWrite(CS_R2, rp1.LOW);
-    result = write(spi_fd, buff, 4 + 0xFFFF + 1);
-    rp1.digitalWrite(CS_R2, rp1.HIGH);
-    //usleep(100);
-
-    // --- G用SRAM書き込み ---
-    memcpy(&buff[4], PicDat_g, 0xFFFF);
-    rp1.digitalWrite(CS_G2, rp1.LOW);
-    write(spi_fd, buff, 4 + 0xFFFF + 1);
-    rp1.digitalWrite(CS_G2, rp1.HIGH);
-    //usleep(100);
-
-    // --- B用SRAM書き込み ---
-    memcpy(&buff[4], PicDat_b, 0xFFFF);
-    rp1.digitalWrite(CS_B2, rp1.LOW);
-    write(spi_fd, buff, 4 + 0xFFFF + 1);
-    rp1.digitalWrite(CS_B2, rp1.HIGH);
-    //usleep(100);
-
-
-}
 */
