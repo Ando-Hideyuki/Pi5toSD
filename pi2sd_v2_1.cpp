@@ -152,11 +152,10 @@ void sram_write_single(const uint8_t *data, int cs_pin) {
     xfer[1].tx_buf = (unsigned long)data;
     xfer[1].len = 0xFFFF;
     rp1.digitalWrite(cs_pin, rp1.LOW);
-    usleep(100);
+//    usleep(100);
     ioctl(spi_fd, SPI_IOC_MESSAGE(2), xfer);
-    usleep(100);
     rp1.digitalWrite(cs_pin, rp1.HIGH);
-    usleep(100);
+
 }
 
 #define BUFFER_SIZE 0xffff  
