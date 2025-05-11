@@ -372,10 +372,12 @@ void Datachk(){
 }
 
 int main() {
-    //bitmap_process("input.bmp");
+    //bitmap_process_A("rainbow.bmp");
+    //bitmap_process_B("rainbow.bmp");
     bitmap_process_A("eye1_upper.bmp");
     bitmap_process_B("eye1_lower.bmp");
-    
+
+
     gpio_init();
     spi_init();
 
