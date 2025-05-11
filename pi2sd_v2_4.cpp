@@ -391,10 +391,10 @@ int main() {
         }
 
         //bitmap_process_A("eye1_upper.bmp");
-        //bitmap_process_A("A1.bmp");
-        //bitmap_process_B("A2.bmp");
-        bitmap_process_A("eye1_upper.bmp");
-        bitmap_process_B("eye1_lower.bmp");
+        bitmap_process_A("A1.bmp");
+        bitmap_process_B("A2.bmp");
+        //bitmap_process_A("eye1_upper.bmp");
+        //bitmap_process_B("eye1_lower.bmp");
 
 
         gpio_init();
@@ -409,12 +409,12 @@ int main() {
         sram_write_single(PicDat_b2, CS_B2);
 
         PicRes0to1();//PICの処理を待ってSRAMバンクを0から1に切り替える
-        sleep(10);  // 秒単位で待つ
+        sleep(1);  // 秒単位で待つ
 
-        //bitmap_process_A("B1.bmp");
-        //bitmap_process_B("B2.bmp");
-        bitmap_process_A("imgB8.bmp");
-        bitmap_process_B("imgB10.bmp");        
+        bitmap_process_A("B1.bmp");
+        bitmap_process_B("B2.bmp");
+        //bitmap_process_A("imgB8.bmp");
+        //bitmap_process_B("imgB10.bmp");        
         sram_init();
 
         sram_write_single(PicDat_r1, CS_R1);
@@ -425,7 +425,7 @@ int main() {
         sram_write_single(PicDat_b2, CS_B2);
 
         PicRes1to0();//PICの処理を待ってSRAMバンクを0から1に切り替える
-        sleep(10);  // 秒単位で待つ
+        sleep(1);  // 秒単位で待つ
 
     }
 
