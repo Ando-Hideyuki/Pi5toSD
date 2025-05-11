@@ -14,6 +14,7 @@ CEピンを汎用GPIOに設定
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <linux/spi/spidev.h>
 #include <string.h>
 #include <errno.h>
@@ -376,11 +377,21 @@ void Datachk(){
     }
 }
 
+
 int main() {
+    struct stat stA;
+    time_t last_mtime_A = 0;
+    for(;;){
+   
+        if (::stat("frameA.bmp", &stA) == 0) {
+            if (stA.st_mtime != last_mtime_A) {
+                printf("ファイル更新検知: %s\n", "test1.bmp");
+                last_mtime_A = stA.st_mtime;
+            }
+        }
 
-    for(int i=0;i<10;i++){
-
-        bitmap_process_A("eye1_upper.bmp");
+        //bitmap_process_A("eye1_upper.bmp");
+        bitmap_process_A("frameA.bmp");
         bitmap_process_B("eye1_lower.bmp");
 
 
